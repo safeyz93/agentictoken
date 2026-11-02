@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en" class="bg-black">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Copy Mint Prompt</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html,
+    body {
+      height: 100%;
+      background: #000;
+    }
+
+    .copy-btn {
+      position: relative;
+      isolation: isolate;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: min(82vw, 430px);
+      min-height: 168px;
+      padding: 2.5rem 3rem;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 42% 58% 55% 45% / 48% 42% 58% 52%;
+      background: #000;
+      color: #fff;
+      cursor: pointer;
+      overflow: visible;
+      animation: morph 8s ease-in-out infinite;
+      transition:
+        transform 350ms cubic-bezier(0.16, 1, 0.3, 1),
+        border-color 350ms ease,
+        box-shadow 350ms ease;
+    }
+
+    .copy-btn::before {
+      content: "";
+      position: absolute;
+      inset: -2px;
+      z-index: -2;
+      border-radius: inherit;
+      background: conic-gradient(
+        from 0deg,
+        transparent 0deg 55deg,
+        rgba(255, 255, 255, 0.9) 90deg,
+        transparent 145deg 360deg
+      );
+      filter: blur(20px);
+      opacity: 0.55;
+      animation: spin 5s linear infinite;
+    }
+
+    .copy-btn::after {
+      content: "";
+      position: absolute;
+      inset: 1px;
+      z-index: -1;
+      border-radius: inherit;
+      background: #000;
+    }
+
+    .copy-btn:hover {
+      transform: scale(1.07);
+      border-color: rgba(255, 255, 255, 0.6);
+      box-shadow:
+        0 0 70px rgba(255, 255, 255, 0.16),
+        inset 0 0 40px rgba(255, 255, 255, 0.05);
+      animation-duration: 2.2s;
+    }
+
+    .copy-btn:active {
+      transform: scale(0.98);
+    }
+
+    .copy-btn:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: 10px;
+    }
+
+    .copy-btn.copied {
+      border-color: rgba(255, 255, 255, 0.8);
+      box-shadow: 0 0 80px rgba(255, 255, 255, 0.2);
+    }
+
+    .copy-btn.copied::before {
+      opacity: 0.9;
+      animation-duration: 1s;
+    }
+
+    @keyframes morph {
+      0%,
+      100% {
+        border-radius: 42% 58% 55% 45% / 48% 42% 58% 52%;
+      }
+      33% {
+        border-radius: 58% 42% 45% 55% / 55% 48% 52% 45%;
+      }
+      66% {
+        border-radius: 48% 52% 62% 38% / 42% 58% 42% 58%;
+      }
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .copy-btn,
+      .copy-btn::before {
+        animation: none;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-black text-white antialiased">
+  <main class="flex min-h-screen items-center justify-center px-6 py-10">
+    <button
+      id="copyBtn"
+      type="button"
+      class="copy-btn"
+      aria-label="Copy the minting prompt"
+    >
+      <span
+        id="copyLabel"
+        class="select-none text-center text-sm font-semibold uppercase tracking-[0.35em] text-white sm:text-base"
+      >
+        Copy Prompt
+      </span>
+    </button>
+  </main>
+
+  <span id="copyStatus" class="sr-only" role="status" aria-live="polite"></span>
+
+  <script>
+    const MINT_PROMPT = `You are operating a Binance Agentic Wallet on BNB Smart Chain (chainId 56).
+
+TASK
+Mint AUTO from the Autonomous Protocol contract.
+
+CONTRACT
+0xD06A497b87A5B3469a0F7AEAdE1e7d72e7a0411C
+
+MINT FUNCTION
+mint() payable
+
+ELIGIBILITY
+Only wallets holding a Binance .ai Agent ID in the on-chain Agent ID registry are eligible. A plain EVM wallet without an Agent ID reverts with NotEligibleWallet. Do not attempt to bypass this gate.
+
+MINT DETAILS
+Gross mint: 11,250 AUTO
+Burn during mint: 1 AUTO
+Net received: 11,249 AUTO
+One mint per wallet, including the creator.
+Mint fee is dynamic. Read it from the contract; do not hardcode 0.0005 BNB.
+
+STEPS
+1. Connect the Binance Agentic Wallet and verify chainId 56.
+2. Read mintStatus(<wallet>), mintFeeWei(), hasMinted(<wallet>), and isAgentIdHolder(<wallet>) from 0xD06A497b87A5B3469a0F7AEAdE1e7d72e7a0411C.
+3. If mintStatus.open is false, stop and report why: mint closed, already minted, or public cap reached.
+4. If registryEligible is false, stop and report that the wallet is not eligible. Do not send a transaction. Do not call mintWithAttestation unless the project backend has issued a valid EIP-712 MintPermit for this exact wallet.
+5. Simulate mint() with value = mintFeeWei() using eth_call.
+6. If the simulation succeeds, send mint() with value = mintFeeWei() (a tiny excess is refunded) and wait for confirmation.
+7. Verify hasMinted(<wallet>) is true. Report the transaction hash, fee paid, and net AUTO received.
+
+SAFETY
+- Send only the mint transaction. Do not approve token allowances.
+- Do not send BNB to any address other than this contract's mint call.
+- Do not use another contract address or chain.
+- If any simulation or transaction reverts, stop and report the revert reason.`;
+
+    const button = document.getElementById("copyBtn");
+    const label = document.getElementById("copyLabel");
+    const status = document.getElementById("copyStatus");
+    let resetTimer;
+
+    function fallbackCopy(text) {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.top = "-9999px";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      if (!ok) throw new Error("Copy command failed");
+    }
+
+    function showCopied() {
+      clearTimeout(resetTimer);
+      button.classList.add("copied");
+      label.textContent = "Copied";
+      status.textContent = "Mint prompt copied to clipboard.";
+      resetTimer = setTimeout(() => {
+        button.classList.remove("copied");
+        label.textContent = "Copy Prompt";
+        status.textContent = "";
+      }, 2200);
+    }
+
+    function showFailed() {
+      clearTimeout(resetTimer);
+      label.textContent = "Copy Failed";
+      status.textContent = "Could not copy automatically. Please select and copy the prompt manually.";
+      resetTimer = setTimeout(() => {
+        label.textContent = "Copy Prompt";
+        status.textContent = "";
+      }, 2600);
+    }
+
+    async function copyMintPrompt() {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(MINT_PROMPT);
+        } else {
+          fallbackCopy(MINT_PROMPT);
+        }
+        showCopied();
+      } catch (error) {
+        try {
+          fallbackCopy(MINT_PROMPT);
+          showCopied();
+        } catch (fallbackError) {
+          showFailed();
+        }
+      }
+    }
+
+    button.addEventListener("click", copyMintPrompt);
+  </script>
+</body>
+</html>
